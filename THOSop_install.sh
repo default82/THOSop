@@ -20,7 +20,7 @@ show_progress() {
         spinstr=$temp${spinstr%"$temp"}
         sleep $delay
     done
-    printf "\r    \b\b\b\b" >&3
+    printf "\r" >&3
     echo "" >&3
 }
 
