@@ -3,7 +3,6 @@
 # Update system and install dependencies
 echo "Aktualisiere System und installiere Abhängigkeiten..."
 sudo apt-get update && sudo apt-get upgrade -y
-sudo apt-get install -y wget curl build-essential unzip
 
 # Fix locale issues
 echo "Überprüfe und korrigiere Locale-Einstellungen..."
