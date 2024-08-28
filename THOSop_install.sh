@@ -7,21 +7,20 @@ LOGFILE="/var/log/thosop_install.log"
 # Alle Ausgaben in die Protokolldatei umleiten, nur Statusmeldungen werden angezeigt
 exec 3>&1 1>>"$LOGFILE" 2>&1
 
-# Fortschrittsanzeige
+# Fortschrittsanzeige mit Cursorsteuerung
 show_progress() {
     local pid=$1
     local delay=0.1
     local spinstr='|/-\'
     local temp
-    echo -n " [$spinstr]  $2" >&3
+    echo -n " [|]  $2" >&3
     while [ "$(ps a | awk '{print $1}' | grep $pid)" ]; do
         temp=${spinstr#?}
-        printf " [%c]  $2" "$spinstr" >&3
+        printf "\r [%c]  $2" "$spinstr" >&3
         spinstr=$temp${spinstr%"$temp"}
         sleep $delay
-        printf "\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b" >&3
     done
-    printf "    \b\b\b\b" >&3
+    printf "\r    \b\b\b\b" >&3
     echo "" >&3
 }
 
