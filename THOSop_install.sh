@@ -7,23 +7,6 @@ LOGFILE="/var/log/thosop_install.log"
 # Alle Ausgaben in die Protokolldatei umleiten, nur Statusmeldungen werden angezeigt
 exec 3>&1 1>>"$LOGFILE" 2>&1
 
-# Fortschrittsanzeige mit Cursorsteuerung
-show_progress() {
-    local pid=$1
-    local delay=0.1
-    local spinstr='|/-\'
-    local temp
-    echo -n " [|]  $2" >&3
-    while [ "$(ps a | awk '{print $1}' | grep $pid)" ]; do
-        temp=${spinstr#?}
-        printf "\r [%c]  $2" "$spinstr" >&3
-        spinstr=$temp${spinstr%"$temp"}
-        sleep $delay
-    done
-    printf "\r" >&3
-    echo "" >&3
-}
-
 # Funktion zur Überprüfung der neuesten Terraform-Version
 get_latest_terraform_version() {
     curl -s https://checkpoint-api.hashicorp.com/v1/check/terraform | grep -Po '"current_version":.*?[^\\]",' | sed 's/"current_version":"\(.*\)",/\1/'
@@ -80,16 +63,14 @@ test_installation() {
 echo "Aktualisiere System und installiere Abhängigkeiten..." >&3
 {
     sudo apt-get update && sudo apt-get upgrade -y && sudo apt-get install -y wget curl unzip
-} &
-show_progress $! "Aktualisiere System und installiere Abhängigkeiten..."
+}
 
 # Überprüfung und Korrektur der Locale-Einstellungen
 echo "Überprüfe und korrigiere Locale-Einstellungen..." >&3
 {
     sudo locale-gen de_DE.UTF-8 en_GB.UTF-8
     sudo update-locale LANG=de_DE.UTF-8
-} &
-show_progress $! "Überprüfe und korrigiere Locale-Einstellungen..."
+}
 
 # Überprüfen, ob SQLite installiert ist
 echo "Überprüfe, ob SQLite installiert ist..." >&3
@@ -98,8 +79,7 @@ echo "Überprüfe, ob SQLite installiert ist..." >&3
         sudo apt-get install -y sqlite3 libsqlite3-dev
     fi
     test_installation "SQLite"
-} &
-show_progress $! "Überprüfe SQLite-Installation..."
+}
 
 # Überprüfen, ob Terraform installiert ist und auf die neueste Version aktualisieren
 echo "Überprüfe, ob Terraform installiert ist..." >&3
@@ -110,8 +90,7 @@ echo "Überprüfe, ob Terraform installiert ist..." >&3
         install_terraform $latest_version
     fi
     test_installation "Terraform"
-} &
-show_progress $! "Überprüfe Terraform-Installation..."
+}
 
 # Überprüfen, ob Ansible installiert ist
 echo "Überprüfe, ob Ansible installiert ist..." >&3
@@ -120,8 +99,7 @@ echo "Überprüfe, ob Ansible installiert ist..." >&3
         sudo apt-get install -y ansible
     fi
     test_installation "Ansible"
-} &
-show_progress $! "Überprüfe Ansible-Installation..."
+}
 
 # Installierte Versionen anzeigen
 echo "Überprüfe die installierten Versionen..." >&3
@@ -129,7 +107,6 @@ echo "Überprüfe die installierten Versionen..." >&3
     sqlite3 --version
     terraform -version
     ansible --version
-} &
-show_progress $! "Zeige installierte Versionen..."
+}
 
 echo "THOSop: Alle Dienste wurden überprüft, installiert (falls erforderlich), getestet und die Versionsnummern wurden ausgegeben." >&3
