@@ -55,3 +55,4 @@ echo "Bereinigung abgeschlossen."
 # Abschlussmeldung
 echo "THOSop: Alle installierten Dienste wurden deinstalliert. Git bleibt installiert."
 
+# Eine kleine Änderung zum Testen
