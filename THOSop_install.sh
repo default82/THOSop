@@ -12,12 +12,14 @@ show_progress() {
     local pid=$1
     local delay=0.1
     local spinstr='|/-\'
+    local temp
+    echo -n " [$spinstr]  $2" >&3
     while [ "$(ps a | awk '{print $1}' | grep $pid)" ]; do
-        local temp=${spinstr#?}
-        printf " [%c]  %s" "$spinstr" "$2" >&3
-        local spinstr=$temp${spinstr%"$temp"}
+        temp=${spinstr#?}
+        printf " [%c]  $2" "$spinstr" >&3
+        spinstr=$temp${spinstr%"$temp"}
         sleep $delay
-        printf "\b\b\b\b\b\b" >&3
+        printf "\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b" >&3
     done
     printf "    \b\b\b\b" >&3
     echo "" >&3
@@ -33,8 +35,8 @@ install_terraform() {
     local version=$1
     echo "Installiere Terraform Version $version..." >&3
     
-    wget https://releases.hashicorp.com/terraform/${version}/terraform_${version}_linux_arm64.zip
-    unzip terraform_${version}_linux_arm64.zip
+    wget -q https://releases.hashicorp.com/terraform/${version}/terraform_${version}_linux_arm64.zip
+    unzip -o terraform_${version}_linux_arm64.zip >/dev/null
     sudo mv terraform /usr/local/bin/
     rm terraform_${version}_linux_arm64.zip
     if ! terraform -version &> /dev/null; then
