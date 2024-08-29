@@ -13,56 +13,46 @@ uninstall_service() {
     
     case $service in
         "SQLite")
-            if command -v sqlite3 &> /dev/null; then
-                sudo apt-get remove --purge -y sqlite3 libsqlite3-dev
-                sudo apt-get autoremove -y
-            fi
+            sudo apt-get remove -y sqlite3 libsqlite3-dev
             ;;
         "Terraform")
-            if command -v terraform &> /dev/null; then
-                sudo rm /usr/local/bin/terraform
-            fi
+            sudo rm -f /usr/local/bin/terraform
             ;;
         "Ansible")
-            if command -v ansible &> /dev/null; then
-                sudo apt-get remove --purge -y ansible
-                sudo apt-get autoremove -y
-            fi
-            ;;
-        "nmap")
-            if command -v nmap &> /dev/null; then
-                sudo apt-get remove --purge -y nmap
-                sudo apt-get autoremove -y
-            fi
+            sudo apt-get remove -y ansible
             ;;
         "git")
-            if command -v git &> /dev/null; then
-                sudo apt-get remove --purge -y git
-                sudo apt-get autoremove -y
-            fi
+            sudo apt-get remove -y git
             ;;
         "Python")
-            if command -v python3 &> /dev/null; then
-                sudo apt-get remove --purge -y python3 python3-pip
-                sudo apt-get autoremove -y
-            fi
+            sudo apt-get remove -y python3 python3-pip
             ;;
         "C++ Compiler")
-            if command -v g++ &> /dev/null; then
-                sudo apt-get remove --purge -y g++
-                sudo apt-get autoremove -y
-            fi
+            sudo apt-get remove -y g++
+            ;;
+        "Lighttpd")
+            sudo apt-get remove -y lighttpd
+            sudo rm -rf /etc/lighttpd /var/www/html
+            ;;
+        "PHP")
+            sudo apt-get remove -y php-cgi
+            ;;
+        "Openbox")
+            sudo apt-get remove -y openbox
+            ;;
+        "Browser")
+            sudo apt-get remove -y chromium-browser
             ;;
     esac
 }
 
 # Liste der zu deinstallierenden Dienste
-SERVICES=("SQLite" "Terraform" "Ansible" "nmap" "git" "Python" "C++ Compiler")
+SERVICES=("SQLite" "Terraform" "Ansible" "git" "Python" "C++ Compiler" "Lighttpd" "PHP" "Openbox" "Browser")
 
 # Deinstallation der Dienste
 for SERVICE in "${SERVICES[@]}"; do
-    echo "Überprüfe, ob $SERVICE deinstalliert wird..." >&3
+    echo "Deinstalliere $SERVICE..." >&3
     uninstall_service "$SERVICE"
 done
 
-echo "THOSop: Alle ausgewählten Dienste wurden deinstalliert und das System bereinigt." >&3
+echo "Deinstallationsvorgang abgeschlossen." >&3
