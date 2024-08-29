@@ -1,81 +1,98 @@
 #!/bin/bash
 
-# Protokolldatei festlegen und löschen
-LOGFILE="/var/log/thosop_install.log"
-> "$LOGFILE"
+# Logdatei anlegen
+LOGFILE="/var/log/install_script.log"
+> $LOGFILE
 
-# Alle Ausgaben in die Protokolldatei umleiten, nur Statusmeldungen werden angezeigt
-exec 3>&1 1>>"$LOGFILE" 2>&1
-
-# Funktion zur Installation eines Dienstes
-install_service() {
-    local service=$1
-    
-    case $service in
-        "SQLite")
-            if ! command -v sqlite3 &> /dev/null; then
-                sudo apt-get install -y sqlite3 libsqlite3-dev
-            fi
-            ;;
-        "Terraform")
-            if ! command -v terraform &> /dev/null; then
-                curl -sSL "https://releases.hashicorp.com/terraform/$(curl -sSL https://releases.hashicorp.com/terraform/ | grep -oP 'terraform/\K[0-9]+\.[0-9]+\.[0-9]+' | head -1)/terraform_$(curl -sSL https://releases.hashicorp.com/terraform/ | grep -oP 'terraform/\K[0-9]+\.[0-9]+\.[0-9]+' | head -1)_linux_arm64.zip" -o terraform.zip
-                unzip terraform.zip
-                sudo mv terraform /usr/local/bin/
-                rm terraform.zip
-            fi
-            ;;
-        "Ansible")
-            if ! command -v ansible &> /dev/null; then
-                sudo apt-get install -y ansible
-            fi
-            ;;
-        "nmap")
-            if ! command -v nmap &> /dev/null; then
-                sudo apt-get install -y nmap
-            fi
-            ;;
-        "git")
-            if ! command -v git &> /dev/null; then
-                sudo apt-get install -y git
-            fi
-            ;;
-        "Python")
-            if ! command -v python3 &> /dev/null; then
-                sudo apt-get install -y python3 python3-pip
-            fi
-            ;;
-        "C++ Compiler")
-            if ! command -v g++ &> /dev/null; then
-                sudo apt-get install -y g++
-            fi
-            ;;
-    esac
+# Funktion zum Loggen
+log() {
+    echo "$1" | tee -a $LOGFILE
 }
 
-# Funktion, um das Netzwerk nach aktiven Maschinen zu scannen
-network_scan() {
-    echo "Starte Netzwerk-Scan..."
-    IP_ADDR=$(hostname -I | awk '{print $1}')
-    SUBNET=$(ip -o -f inet addr show | awk '/scope global/ {print $4}')
-    OUTPUT_FILE="/var/log/network_scan_results.txt"
+log "Beginne mit der Installation und Konfiguration..."
 
-    echo "Scanne Netzwerk $SUBNET von IP $IP_ADDR..."
-    nmap -O -sV $SUBNET -oN "$OUTPUT_FILE"
+# System aktualisieren
+log "Aktualisiere System..."
+sudo apt-get update && sudo apt-get upgrade -y
 
-    echo "Netzwerk-Scan abgeschlossen. Ergebnisse gespeichert in $OUTPUT_FILE."
+# Erforderliche Pakete installieren
+log "Installiere erforderliche Pakete..."
+sudo apt-get install -y openbox midori lighttpd php-cgi openssl git build-essential
+
+# Openbox konfigurieren und Midori im Kiosk-Modus starten lassen
+log "Richte Openbox Autostart-Konfiguration ein..."
+mkdir -p $HOME/.config/openbox
+cat <<EOF > $HOME/.config/openbox/autostart
+# Starte Midori im Kiosk-Modus
+midori -a https://localhost -e Fullscreen -e NoMenubar -e NoStatusbar -e NoNavigationbar &
+EOF
+
+# PHP mit Lighttpd verbinden
+log "Verbinde PHP mit Lighttpd..."
+sudo lighty-enable-mod fastcgi-php
+sudo service lighttpd force-reload
+
+# Erstellen der generischen Webseite
+log "Erstelle generische Webseite..."
+WEB_ROOT="/var/www/html"
+sudo mkdir -p $WEB_ROOT
+echo "<?php phpinfo(); ?>" | sudo tee $WEB_ROOT/index.php
+
+cat <<EOF | sudo tee $WEB_ROOT/index.html
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Willkommen</title>
+</head>
+<body>
+    <h1>Willkommen auf der generischen Webseite!</h1>
+    <p>Diese Webseite wurde automatisch generiert.</p>
+</body>
+</html>
+EOF
+
+# HTTPS einrichten
+log "Richte HTTPS ein..."
+CERT_DIR="/etc/lighttpd/certs"
+sudo mkdir -p $CERT_DIR
+sudo openssl req -new -x509 -days 365 -nodes -out $CERT_DIR/lighttpd.pem -keyout $CERT_DIR/lighttpd.pem -subj "/C=DE/ST=Berlin/L=Berlin/O=MyOrg/OU=IT/CN=localhost"
+sudo chmod 600 $CERT_DIR/lighttpd.pem
+
+cat <<EOF | sudo tee -a /etc/lighttpd/lighttpd.conf
+
+# HTTPS Konfiguration
+server.modules += ("mod_openssl")
+$SERVER["socket"] == ":443" {
+    ssl.engine = "enable"
+    ssl.pemfile = "/etc/lighttpd/certs/lighttpd.pem"
 }
 
-# Liste der zu installierenden Dienste
-SERVICES=("SQLite" "Terraform" "Ansible" "nmap" "git" "Python" "C++ Compiler")
+# PHP Konfiguration
+server.modules += ("mod_fastcgi")
+fastcgi.server = ( ".php" =>
+    ( "localhost" =>
+        (
+            "socket" => "/var/run/lighttpd/php.socket",
+            "bin-path" => "/usr/bin/php-cgi"
+        )
+    )
+)
+EOF
 
-# Installation der Dienste
-for SERVICE in "${SERVICES[@]}"; do
-    echo "Überprüfe, ob $SERVICE installiert ist..." >&3
-    install_service "$SERVICE"
-done
+sudo service lighttpd force-reload
 
-# Netzwerk-Scan durchführen
-network_scan
+log "HTTPS und PHP Konfiguration abgeschlossen."
 
-echo "THOSop: Alle ausgewählten Dienste wurden installiert und konfiguriert. Netzwerk-Scan wurde durchgeführt." >&3
+# Lighttpd beim Systemstart aktivieren
+log "Aktiviere Lighttpd für den Systemstart..."
+sudo systemctl enable lighttpd
+
+# Openbox beim Systemstart aktivieren
+log "Aktiviere Openbox für den Systemstart..."
+cat <<EOF > $HOME/.xinitrc
+exec openbox-session
+EOF
+
+log "Installations- und Konfigurationsvorgang abgeschlossen."
