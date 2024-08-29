@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Protokolldatei festlegen und löschen
-LOGFILE="/var/log/thosop_uninstall.log"
+LOGFILE="/var/log/thosop_install.log"
 > "$LOGFILE"
 
 # Alle Ausgaben in die Protokolldatei umleiten, nur Statusmeldungen werden angezeigt
@@ -10,87 +10,64 @@ exec 3>&1 1>>"$LOGFILE" 2>&1
 # Funktion zum Loggen
 log() {
     echo "$1" >&3
-    echo "$1" >> $LOGFILE
 }
 
-# Funktion zur Deinstallation eines Dienstes
-uninstall_service() {
-    local service=$1
-    
-    case $service in
-        "SQLite")
-            if command -v sqlite3 &> /dev/null; then
-                sudo apt-get remove --purge -y sqlite3 libsqlite3-dev
-                sudo apt-get autoremove -y
-            fi
-            ;;
-        "Terraform")
-            if command -v terraform &> /dev/null; then
-                sudo rm /usr/local/bin/terraform
-            fi
-            ;;
-        "Ansible")
-            if command -v ansible &> /dev/null; then
-                sudo apt-get remove --purge -y ansible
-                sudo apt-get autoremove -y
-            fi
-            ;;
-        "nmap")
-            if command -v nmap &> /dev/null; then
-                sudo apt-get remove --purge -y nmap
-                sudo apt-get autoremove -y
-            fi
-            ;;
-        "git")
-            if command -v git &> /dev/null; then
-                sudo apt-get remove --purge -y git
-                sudo apt-get autoremove -y
-            fi
-            ;;
-        "Python")
-            if command -v python3 &> /dev/null; then
-                sudo apt-get remove --purge -y python3 python3-pip
-                sudo apt-get autoremove -y
-            fi
-            ;;
-        "C++ Compiler")
-            if command -v g++ &> /dev/null; then
-                sudo apt-get remove --purge -y g++
-                sudo apt-get autoremove -y
-            fi
-            ;;
-        "Openbox")
-            if command -v openbox &> /dev/null; then
-                sudo apt-get remove --purge -y openbox
-                sudo apt-get autoremove -y
-                rm -rf $HOME/.config/openbox
-                rm -f $HOME/.xinitrc
-            fi
-            ;;
-        "Midori")
-            if command -v midori &> /dev/null; then
-                sudo apt-get remove --purge -y midori
-                sudo apt-get autoremove -y
-            fi
-            ;;
-        "Lighttpd")
-            if command -v lighttpd &> /dev/null; then
-                sudo systemctl disable lighttpd
-                sudo apt-get remove --purge -y lighttpd php-cgi openssl
-                sudo apt-get autoremove -y
-                sudo rm -rf /var/www/html /etc/lighttpd/certs
-            fi
-            ;;
-    esac
+log "Beginne mit der Installation und Konfiguration..."
+
+# Systemaktualisierung
+log "Aktualisiere System..."
+sudo apt-get update
+sudo apt-get upgrade -y
+
+# Installiere erforderliche Pakete
+log "Installiere erforderliche Pakete..."
+sudo apt-get install -y sqlite3 libsqlite3-dev ansible git python3 python3-pip g++ openbox lighttpd php-cgi openssl
+
+# Midori Installation und Fallback auf Chromium, wenn Midori nicht verfügbar ist
+if ! command -v midori &> /dev/null; then
+    log "Midori nicht verfügbar. Installiere stattdessen Chromium..."
+    sudo apt-get install -y chromium-browser
+fi
+
+# Openbox Autostart-Konfiguration
+log "Richte Openbox Autostart-Konfiguration ein..."
+mkdir -p ~/.config/openbox
+echo "chromium-browser --kiosk http://localhost" > ~/.config/openbox/autostart
+
+# Lighttpd und PHP konfigurieren
+log "Verbinde PHP mit Lighttpd..."
+sudo lighty-enable-mod fastcgi
+sudo lighty-enable-mod fastcgi-php
+
+log "Richte HTTPS ein..."
+sudo mkdir -p /etc/lighttpd/certs
+sudo openssl req -new -x509 -keyout /etc/lighttpd/certs/lighttpd.pem -out /etc/lighttpd/certs/lighttpd.pem -days 365 -nodes -subj "/C=DE/ST=Berlin/L=Berlin/O=Example/OU=IT/CN=example.com"
+
+# Lighttpd Konfiguration für HTTPS
+sudo bash -c 'cat <<EOF > /etc/lighttpd/lighttpd.conf
+server.modules += ("mod_openssl")
+$SERVER["socket"] == ":443" {
+    ssl.engine = "enable"
+    ssl.pemfile = "/etc/lighttpd/certs/lighttpd.pem"
 }
+server.modules += ("mod_fastcgi")
+fastcgi.server = ( ".php" =>
+    ( "localhost" =>
+        (
+            "socket" => "/var/run/lighttpd/php.socket",
+            "bin-path" => "/usr/bin/php-cgi"
+        )
+    )
+)
+EOF'
 
-# Liste der zu deinstallierenden Dienste
-SERVICES=("SQLite" "Terraform" "Ansible" "git" "Python" "C++ Compiler" "Openbox" "Midori" "Lighttpd")
+sudo systemctl restart lighttpd
 
-# Deinstallation der Dienste
-for SERVICE in "${SERVICES[@]}"; do
-    log "Deinstalliere $SERVICE..."
-    uninstall_service "$SERVICE"
-done
+# Autostart für Openbox und Lighttpd
+log "Aktiviere Lighttpd für den Systemstart..."
+sudo systemctl enable lighttpd
 
-log "Deinstallationsvorgang abgeschlossen."
+log "Aktiviere Openbox für den Systemstart..."
+echo "exec openbox-session" > ~/.xinitrc
+
+log "Installations- und Konfigurationsvorgang abgeschlossen."
